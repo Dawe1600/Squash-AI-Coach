@@ -6,6 +6,10 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 
+<p align="center">
+  <img src="assets/app_mobile_screenshot.png" alt="Squash AI Coach Mobile View" width="320">
+</p>
+
 **Squash AI Coach** is an innovative analytics system designed for beginner and intermediate squash players. The application analyzes live match footage, tracks player movements, and uses the **Gemma 4 31B** AI model (with built-in fallback models) to provide valuable, concise tips regarding technique, footwork, and court positioning (e.g., the mandatory return to the "T").
 
 **Players set up a phone or camera with a view of the court, and then each wears a single earpiece. During the match, the AI coach analyzes the video feed and communicates with them in real-time, delivering personalized audio feedback, e.g., "Peter - return to the T faster."**
@@ -78,6 +82,10 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+
+<p align="center">
+  <img src="assets/app_mobile_screenshot.png" alt="Podgląd aplikacji mobilnej Squash AI Coach" width="320">
+</p>
 
 **Squash AI Coach** to innowacyjny system analityczny stworzony z myślą o początkujących i średniozaawansowanych graczach w squasha. Aplikacja analizuje nagrania z meczów w czasie rzeczywistym, śledzi ruchy zawodników i za pomocą modelu sztucznej inteligencji **Gemma 4 31B** (wraz z wbudowanymi zapasowymi modelami fallback) dostarcza cenne krótkie wskazówki dotyczące techniki, pracy nóg oraz pozycjonowania na korcie (np. obowiązkowy powrót na literę "T").
 
