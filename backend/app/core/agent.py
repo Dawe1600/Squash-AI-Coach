@@ -168,6 +168,12 @@ class SquashAgent:
                 break
                 
             if frame_idx % frame_interval == 0:
+                # Skalowanie w dół dla zmniejszenia rozmiaru przesyłanych danych (max szerokość 1024px)
+                h, w = frame.shape[:2]
+                if w > 1024:
+                    scale = 1024 / w
+                    frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+
                 # Kompresja klatki do JPEG
                 success, encoded_img = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if success:

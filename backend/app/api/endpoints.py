@@ -1,5 +1,6 @@
 import re
 import os
+import shutil
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, Query, HTTPException, BackgroundTasks
 from typing import Dict
@@ -41,7 +42,7 @@ class SessionManager:
             self.motion_detectors[session_id].cleanup_all()
             # Próba usunięcia katalogu bufora
             try:
-                os.rmdir(self.motion_detectors[session_id].buffer_dir)
+                shutil.rmtree(self.motion_detectors[session_id].buffer_dir, ignore_errors=True)
             except Exception:
                 pass
             del self.motion_detectors[session_id]
