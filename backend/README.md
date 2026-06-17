@@ -1,3 +1,12 @@
+---
+title: Squash AI Coach
+emoji: 🎾
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # Squash AI Coach - Backend API
 
 Backend systemu **Squash AI Coach** zbudowany w języku Python przy użyciu frameworka **FastAPI**. Serwer na bieżąco odbiera strumień fragmentów wideo (chunki) przesyłanych ze smartfona na korcie, grupuje je opierając się na określonej liczbie paczek wideo, przesyła złączone nagranie do multimodalnego modelu AI (z mechanizmem failover) i zwraca zawodnikom wskazówki taktyczne w postaci zsyntetyzowanej mowy (plik MP3) oraz struktury JSON.
