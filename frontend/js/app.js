@@ -71,7 +71,7 @@ function initSession() {
 }
 
 function generateUUID() {
-    return 'session_' + Math.random().toString(36).substring(2, 11);
+    return 'session_' + (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
 }
 
 // Pobranie listy dostępnych kamer
