@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squash-ai-coach-v2';
+const CACHE_NAME = 'squash-ai-coach-v4';
 const ASSETS = [
   './',
   './index.html',
