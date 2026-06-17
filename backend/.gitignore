@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Configuration
+.env
+.env.local
+
+# Video Buffers (Squash AI Coach temp directories)
+temp_buffer*/
+*.mp4
+*.webm
+*.mov
+*.bin
+*.mp3
