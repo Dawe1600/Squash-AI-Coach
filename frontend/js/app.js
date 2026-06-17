@@ -23,6 +23,8 @@ const audioPlayer = document.getElementById('audio-player');
 const backendUrlInput = document.getElementById('backend-url');
 const sessionIdInput = document.getElementById('session-id');
 const btnRegenSession = document.getElementById('btn-regen-session');
+const backendWarningBanner = document.getElementById('backend-warning-banner');
+const btnConfigureBackendShortcut = document.getElementById('btn-configure-backend-shortcut');
 
 // Modal Konfiguracji Graczy
 const btnConfigPlayers = document.getElementById('btn-config-players');
@@ -128,6 +130,8 @@ async function startCameraPreview() {
 // Połączenie z WebSocketem
 function connectWebSocket() {
     if (socket) {
+        socket.onclose = null;
+        socket.onerror = null;
         socket.close();
     }
 
@@ -152,6 +156,9 @@ function connectWebSocket() {
     socket.onopen = () => {
         updateConnectionStatus(true, "Połączono");
         statusMessage.textContent = "Gotowy do rozpoczęcia treningu.";
+        if (backendWarningBanner) {
+            backendWarningBanner.classList.add('hidden');
+        }
     };
 
     socket.onclose = () => {
@@ -160,11 +167,13 @@ function connectWebSocket() {
             statusMessage.textContent = "Połączenie z serwerem przerwane. Próba ponownego połączenia...";
             setTimeout(connectWebSocket, 3000);
         }
+        showBackendWarning("Połączenie z serwerem backend (FastAPI) zostało przerwane lub nie mogło zostać nawiązane.");
     };
 
     socket.onerror = (err) => {
         console.error("Błąd WebSocket:", err);
         updateConnectionStatus(false, "Błąd");
+        showBackendWarning("Błąd połączenia z serwerem backend. Upewnij się, że serwer działa.");
     };
 
     socket.onmessage = async (event) => {
@@ -186,6 +195,16 @@ function connectWebSocket() {
 function updateConnectionStatus(isConnected, text) {
     connectionStatus.className = `status-badge ${isConnected ? 'connected' : 'disconnected'}`;
     connectionStatus.querySelector('.status-text').textContent = text;
+}
+
+function showBackendWarning(message) {
+    if (backendWarningBanner) {
+        const textEl = backendWarningBanner.querySelector('.warning-banner-text');
+        if (textEl) {
+            textEl.textContent = message;
+        }
+        backendWarningBanner.classList.remove('hidden');
+    }
 }
 
 // Inicjalizacja Web Audio API
@@ -498,9 +517,6 @@ if (drawerOverlay) {
 }
 
 // Obsługa baneru ostrzegawczego backendu
-const backendWarningBanner = document.getElementById('backend-warning-banner');
-const btnConfigureBackendShortcut = document.getElementById('btn-configure-backend-shortcut');
-
 if (btnConfigureBackendShortcut) {
     btnConfigureBackendShortcut.addEventListener('click', openSettings);
 }
