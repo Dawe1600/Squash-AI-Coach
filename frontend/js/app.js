@@ -197,44 +197,23 @@ function initAudio() {
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
-    
-    // Wymuszone odblokowanie na iOS (odtworzenie głuchej sekundy podczas kliknięcia)
-    const buffer = audioCtx.createBuffer(1, 1, 22050);
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioCtx.destination);
-    if (source.start) {
-        source.start(0);
-    } else {
-        source.noteOn(0);
-    }
 }
 
 // Odtwarzanie wskazówek głosowych (Web Audio API)
-function playAudioFeedback(blob) {
+async function playAudioFeedback(blob) {
     if (!audioCtx) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const arrayBuffer = e.target.result;
+    try {
+        const arrayBuffer = await blob.arrayBuffer();
         audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
             const source = audioCtx.createBufferSource();
             source.buffer = buffer;
             source.connect(audioCtx.destination);
-            if (source.start) {
-                source.start(0);
-            } else {
-                source.noteOn(0);
-            }
+            source.start(0);
             console.log("[Audio] Pomyślnie odtworzono wskazówki głosowe (Blob).");
-        }, (err) => {
-            console.error("[Audio] Błąd dekodowania audio:", err);
         });
-    };
-    reader.onerror = function(err) {
-        console.error("[Audio] Błąd odczytu pliku blob:", err);
+    } catch (err) {
+        console.error("[Audio] Błąd odtwarzania przez Web Audio API:", err);
     }
-    reader.readAsArrayBuffer(blob);
 }
 
 async function playBase64Audio(base64str) {
@@ -406,13 +385,6 @@ async function sendChunk(blob) {
 
 // Event Listeners
 btnStart.addEventListener('click', () => {
-    // Wymóg konfiguracji graczy
-    if (!playersConfig) {
-        alert("Przed rozpoczęciem treningu musisz skonfigurować wygląd graczy!");
-        playersModal.classList.remove('hidden');
-        return;
-    }
-
     // Odblokowanie Web Audio API na iOS (musi nastąpić w evencie interakcji użytkownika)
     initAudio();
 
