@@ -10,6 +10,45 @@ let recordingActive = false;
 let audioCtx = null; // Web Audio API Context
 let currentLanguage = "pl";
 
+// Mapowanie kategorii na ikony emoji
+const CATEGORY_ICONS = {
+    footwork: '🦶',
+    racket_technique: '🎾',
+    shot_selection: '🎯',
+    tactical: '🧠',
+    positioning: '📍'
+};
+
+// Mapowanie kategorii na czytelne nazwy (PL/EN)
+const CATEGORY_LABELS = {
+    pl: {
+        footwork: 'Praca nóg',
+        racket_technique: 'Technika rakiety',
+        shot_selection: 'Wybór uderzenia',
+        tactical: 'Taktyka',
+        positioning: 'Pozycjonowanie'
+    },
+    en: {
+        footwork: 'Footwork',
+        racket_technique: 'Racket Technique',
+        shot_selection: 'Shot Selection',
+        tactical: 'Tactical',
+        positioning: 'Positioning'
+    }
+};
+
+// Mapowanie severity na kolory CSS i etykiety
+const SEVERITY_CONFIG = {
+    minor:    { emoji: '🟢', cssClass: 'severity-minor' },
+    moderate: { emoji: '🟡', cssClass: 'severity-moderate' },
+    critical: { emoji: '🔴', cssClass: 'severity-critical' }
+};
+
+const SEVERITY_LABELS = {
+    pl: { minor: 'Drobny', moderate: 'Umiarkowany', critical: 'Krytyczny' },
+    en: { minor: 'Minor', moderate: 'Moderate', critical: 'Critical' }
+};
+
 // Słownik tłumaczeń interfejsu
 const UI_TRANSLATIONS = {
     pl: {
@@ -492,11 +531,17 @@ function connectWebSocket() {
         socket.close();
     }
 
-    const backendUrl = backendUrlInput.value.trim();
+    let backendUrl = backendUrlInput.value.trim();
+    
+    // Automatyczne dodawanie http:// jeśli brakuje protokołu (np. wpisano samo localhost:7860)
+    if (backendUrl && !/^https?:\/\//i.test(backendUrl)) {
+        backendUrl = 'http://' + backendUrl;
+    }
+    
     localStorage.setItem('squash_backend_url', backendUrl);
 
     // Konwersja http(s) do ws(s)
-    let wsUrl = backendUrl.replace(/^http/, 'ws');
+    let wsUrl = backendUrl.replace(/^http/i, 'ws');
     // Dodanie endpointu sesji z językiem
     wsUrl = `${wsUrl}/ws/session?session_id=${sessionId}&lang=${currentLanguage}`;
     
@@ -653,17 +698,60 @@ function displayAnalysis(data) {
 
     const bubble = document.createElement('div');
     bubble.className = 'coach-bubble';
+
+    // Severity border coloring
+    if (data.severity_level && SEVERITY_CONFIG[data.severity_level]) {
+        bubble.classList.add(SEVERITY_CONFIG[data.severity_level].cssClass);
+    }
     
+    // Build metadata badges (category + severity)
+    let badgesHtml = '';
+    if (data.tip_category || data.severity_level) {
+        badgesHtml = '<div class="tip-badges">';
+        if (data.tip_category) {
+            const icon = CATEGORY_ICONS[data.tip_category] || '📋';
+            const label = (CATEGORY_LABELS[currentLanguage] || CATEGORY_LABELS.en)[data.tip_category] || data.tip_category;
+            badgesHtml += `<span class="tip-badge tip-badge-category">${icon} ${label}</span>`;
+        }
+        if (data.severity_level) {
+            const sevConf = SEVERITY_CONFIG[data.severity_level] || SEVERITY_CONFIG.minor;
+            const sevLabel = (SEVERITY_LABELS[currentLanguage] || SEVERITY_LABELS.en)[data.severity_level] || data.severity_level;
+            badgesHtml += `<span class="tip-badge ${sevConf.cssClass}">${sevConf.emoji} ${sevLabel}</span>`;
+        }
+        badgesHtml += '</div>';
+    }
+
     let targetHtml = '';
     if (data.target_player) {
-        targetHtml = `<div class="player-target">${UI_TRANSLATIONS[currentLanguage].targetTo}: ${data.target_player}</div><br>`;
+        targetHtml = `<div class="player-target">${UI_TRANSLATIONS[currentLanguage].targetTo}: ${data.target_player}</div>`;
+    }
+
+    // Build drill suggestion accordion
+    let drillHtml = '';
+    if (data.drill_suggestion) {
+        const drillLabel = currentLanguage === 'pl' ? 'Ćwiczenie naprawcze' : 'Corrective Drill';
+        const drillId = 'drill-' + Date.now();
+        drillHtml = `
+            <div class="drill-accordion">
+                <button class="drill-toggle" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false" aria-controls="${drillId}">
+                    <span class="drill-toggle-icon">💪</span>
+                    <span class="drill-toggle-label">${drillLabel}</span>
+                    <span class="drill-toggle-arrow">▸</span>
+                </button>
+                <div class="drill-content" id="${drillId}">
+                    ${data.drill_suggestion}
+                </div>
+            </div>
+        `;
     }
 
     bubble.innerHTML = `
         <span class="coach-avatar">🎾</span>
         <div class="bubble-content">
             ${targetHtml}
-            <strong>${UI_TRANSLATIONS[currentLanguage].coachName}:</strong> ${data.tip_text}
+            ${badgesHtml}
+            <div class="tip-main-text"><strong>${UI_TRANSLATIONS[currentLanguage].coachName}:</strong> ${data.tip_text}</div>
+            ${drillHtml}
         </div>
     `;
 
