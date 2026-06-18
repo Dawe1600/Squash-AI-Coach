@@ -9,35 +9,68 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 from .schemas import CoachTip
+from .knowledge_loader import KnowledgeLoader
 
 # Zapewnienie, że zmienne środowiskowe zostaną załadowane przed użyciem klienta GenAI
 load_dotenv()
 
-SYSTEM_PROMPT = """Jesteś wybitnym, profesjonalnym trenerem squasha analizującym kilkusekundowe okienko wideo z gry na żywo. Twoim celem jest przekazywanie precyzyjnych, taktycznych i technicznych wskazówek opartych na profesjonalnej teorii squasha.
+SYSTEM_PROMPT_TEMPLATE = """You are an elite, world-class squash coach with deep expertise in technique, footwork, tactics, and player development. You are analyzing short video clips (a few seconds) from live squash matches to provide real-time coaching feedback.
 
-Przeanalizuj grę obu zawodników pod kątem następujących aspektów:
-1. Poruszanie się i pozycja na korcie:
-   - Kontrola "T" (T-position): Czy zawodnik wraca na środek po uderzeniu?
-   - Krok dopasowujący (split-step): Czy wykonuje krótki split-step tuż przed uderzeniem przeciwnika?
-   - Wypad (lunge) i amortyzacja: Czy schodzi nisko na kolanach i ląduje stabilnie?
-2. Technika uderzenia i odległość (spacing):
-   - Wczesne przygotowanie rakiety (early racket prep): Czy rakieta jest odprowadzona w górę przed dobiegnięciem do piłki?
-   - Zachowanie dystansu (spacing): Czy zawodnik nie podchodzi zbyt blisko piłki (crowding), co skraca zamach?
-   - Zamach i wykończenie (swing path & follow-through): Czy zamach jest płynny z wysokim wykończeniem (high follow-through)?
-3. Taktyka i wybór uderzeń:
-   - Długość i szerokość: Czy piłka leci ciasno przy ścianie (tight straight drive/rail) głęboko do tyłu?
-   - Gra z powietrza: Czy zawodnik aktywnie szuka wolejów (volley), by zabrać czas rywalowi?
-   - Obrona i zmiana tempa: Czy pod presją stosuje wysoki lob, czy niepotrzebnie ryzykuje niskie, trudne uderzenia (uderzenie w tin)?
+## YOUR COACHING PHILOSOPHY
 
-Zasady generowania wskazówki:
-- Wybierz JEDEN, absolutnie najistotniejszy błąd techniczny lub taktyczny w danej akcji.
-- Sformułuj wskazówkę jako krótkie, jednozdaniowe, motywujące i bardzo konkretne zalecenie (np. "Podnieś rakietę wcześniej (racket prep), zanim zaczniesz biec do piłki!").
-- Używaj profesjonalnego słownictwa squashowego (np. split-step, racket prep, spacing, lunge, volley, straight drive/rail, dominacja na T).
-- Identyfikuj adresata po unikalnych cechach wizualnych (np. "Mężczyzna w niebieskich spodenkach, ..."). CHYBA ŻE dostaniesz w treści wiadomości przypisanie imion do ubrań - wtedy ZWRACAJ SIĘ WYŁĄCZNIE PO IMIENIU (np. "Jan, ...") i wstaw to imię do pola `target_player`.
-- Jeśli gracze grają bezbłędnie (np. na poziomie profesjonalnym), lub jeśli zauważony błąd został już wymieniony w sekcji ostatnich uwag (previous tips), ustaw `has_tip` na `false` i pozostaw pozostałe pola puste.
+You adapt your coaching style based on what you observe:
+- **For beginners** (poor T-recovery, flat-footed, no racket prep): Use encouraging, simple language. Focus on ONE fundamental issue. Explain WHY the correction matters.
+- **For intermediate players** (decent basics but inconsistent): Use technical squash terminology with brief explanations. Point out tactical improvements and pattern recognition.
+- **For advanced players** (solid fundamentals, tactical play): Use precise, expert-level language. Focus on subtle refinements, pressure situations, and tactical nuance.
 
-Odpowiedź musi być zawsze w formacie JSON zgodnym ze schematem.
+Your tone is always **motivating and constructive** — never harsh or discouraging. You are a coach who builds confidence while pushing for improvement.
+
+## EXPERT SQUASH KNOWLEDGE
+
+{knowledge}
+
+## VIDEO ANALYSIS FRAMEWORK
+
+When watching the video clip, systematically evaluate:
+
+### 1. Footwork & Court Movement
+- **T-Recovery**: Does the player return to the T after each shot? Speed of recovery?
+- **Split-step**: Is there a visible ready-hop timed to the opponent's swing?
+- **Lunge quality**: Low center of gravity? Proper knee alignment? Explosive push-back?
+- **Movement efficiency**: Direct paths to the ball? Crossover vs side-steps?
+
+### 2. Racket Technique & Spacing
+- **Early racket preparation**: Is the racket up at shoulder height BEFORE the player reaches the ball?
+- **Spacing/Crowding**: Is the player at arm's-length from the ball, or jammed too close?
+- **Swing path**: Smooth arc from high backswing through contact to high follow-through?
+- **Contact point**: In front of the leading leg, at hip-to-knee height?
+
+### 3. Shot Selection & Execution
+- **Drive quality**: Tight to the wall? Reaching the back quarter? Good length?
+- **Shot choice under pressure**: Safe lob vs risky low shot when stretched?
+- **Volley opportunities**: Does the player intercept volleable balls from the T?
+- **Deception**: Any telegraphing of shot direction?
+
+### 4. Tactical Awareness
+- **T-dominance**: Which player controls the center? Who is dictating the rally?
+- **Length vs short balance**: Is the player building pressure with length before attacking?
+- **Tempo variation**: Any changes of pace, or is every shot hit at the same speed?
+- **Pattern recognition**: Predictable patterns that the opponent is exploiting?
+
+## RESPONSE RULES
+
+1. **Choose exactly ONE error** — the single most impactful issue you observe in this clip. Prioritize critical errors over moderate, moderate over minor.
+2. **Generate 1-2 sentences maximum**: First sentence is the specific coaching tip. Second sentence (optional) briefly explains WHY this matters.
+3. **Use professional squash vocabulary** (split-step, racket prep, spacing, lunge, volley, straight drive/rail, T-dominance, ghosting) but keep it accessible.
+4. **Identify the target player** by their unique visual features (e.g., "Man in blue shorts"). UNLESS player names are provided in the user message — then address the player by name ONLY (e.g., "Jan, ...") and put the name in the `target_player` field.
+5. **Classify the error** using `tip_category`: footwork, racket_technique, shot_selection, tactical, or positioning.
+6. **Rate severity** using `severity_level`: minor (small refinement), moderate (impacts game quality), critical (fundamental issue that must be addressed).
+7. **Suggest a corrective drill** in `drill_suggestion` — a short, actionable practice exercise to fix the identified error.
+8. **Skip if unnecessary**: If the players are performing well (e.g., at a professional level), or if the detected error has already been mentioned in the previous tips section, set `has_tip` to `false` and leave other fields empty.
+
+Your response MUST always be valid JSON matching the provided schema.
 """
+
 
 FALLBACK_MODELS = [
     "gemma-4-31b-it",
@@ -52,6 +85,51 @@ class SquashAgent:
         # Inicjalizacja oficjalnego klienta Google GenAI.
         # Jeśli api_key jest None, pobierze automatycznie z GEMINI_API_KEY.
         self.client = genai.Client(api_key=api_key)
+
+        # Ładowanie bazy wiedzy squashowej przy inicjalizacji
+        self.knowledge_loader = KnowledgeLoader()
+        knowledge_text = self.knowledge_loader.get_knowledge_text()
+
+        # Budowanie system prompt z wstrzykniętą wiedzą
+        self.system_prompt = SYSTEM_PROMPT_TEMPLATE.format(knowledge=knowledge_text)
+        print(f"[Agent] System prompt built: {len(self.system_prompt)} characters (knowledge: {len(knowledge_text)} chars)")
+
+    def _build_user_prompt(self, base_prompt: str, previous_tips: List[str] = None, players_config: str = None, lang: str = "pl") -> str:
+        """
+        Buduje pełny prompt użytkownika z uwzględnieniem konfiguracji graczy,
+        historii wskazówek i języka. DRY — używane przez obie metody analizy.
+        """
+        parts = [base_prompt]
+
+        # Język odpowiedzi
+        lang_names = {"pl": "Polish", "en": "English"}
+        mapped_lang = lang_names.get(lang, "Polish")
+        parts.append(f"\n\nGenerate your response (tip_text and drill_suggestion) in {mapped_lang}.")
+
+        # Konfiguracja graczy
+        if players_config:
+            try:
+                conf = json.loads(players_config)
+                pa = conf.get("playerA", {})
+                pb = conf.get("playerB", {})
+                parts.append(
+                    f"\n\nIdentified players on the court:"
+                    f"\n- Player A: {pa.get('name')} ({pa.get('gender')}, appearance: {pa.get('look')})"
+                    f"\n- Player B: {pb.get('name')} ({pb.get('gender')}, appearance: {pb.get('look')})"
+                    f"\nAddress players ONLY by their first name (e.g., '{pa.get('name')}, do...'). "
+                    f"In the JSON response, assign the name to the target_player field."
+                )
+            except json.JSONDecodeError:
+                pass
+
+        # Historia wcześniejszych wskazówek
+        if previous_tips:
+            tips_text = "\n\nYou have already given these tips recently (DO NOT REPEAT THEM, focus on different errors):\n"
+            for tip in previous_tips:
+                tips_text += f"- {tip}\n"
+            parts.append(tips_text)
+
+        return "".join(parts)
 
     async def analyze_video(self, video_path: str, previous_tips: List[str] = None, players_config: str = None, lang: str = "pl") -> CoachTip:
         """
@@ -102,30 +180,15 @@ class SquashAgent:
 
         try:
             config = types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
+                system_instruction=self.system_prompt,
                 response_mime_type="application/json",
                 response_schema=CoachTip,
                 temperature=0.2,
             )
-            prompt_contents = [uploaded_file, "Przeanalizuj to wideo z meczu squasha i zwróć podsumowanie oraz oceny graczy."]
-            
-            lang_names = {"pl": "polskim", "en": "angielskim"}
-            mapped_lang = lang_names.get(lang, "polskim")
-            prompt_contents.append(f"\n\nOdpowiedź wygeneruj w języku {mapped_lang}.")
-            if players_config:
-                try:
-                    conf = json.loads(players_config)
-                    pa = conf.get("playerA", {})
-                    pb = conf.get("playerB", {})
-                    prompt_contents.append(f"\n\nRozpoznani gracze na korcie:\n- Gracz A: {pa.get('name')} ({pa.get('gender')}, ubiór: {pa.get('look')})\n- Gracz B: {pb.get('name')} ({pb.get('gender')}, ubiór: {pb.get('look')})\nZwracaj się do graczy WYŁĄCZNIE używając ich imienia (np. '{pa.get('name')}, zrób...'). W formacie JSON przypisz imię do zmiennej target_player.")
-                except json.JSONDecodeError:
-                    pass
 
-            if previous_tips:
-                tips_text = "\n\nOstatnio zwróciłeś już te uwagi (NIE POWTARZAJ ICH, skup się na innych błędach):\n"
-                for tip in previous_tips:
-                    tips_text += f"- {tip}\n"
-                prompt_contents.append(tips_text)
+            base_prompt = "Analyze this squash match video clip. Identify the single most important technical or tactical error and provide structured coaching feedback."
+            user_prompt = self._build_user_prompt(base_prompt, previous_tips, players_config, lang)
+            prompt_contents = [uploaded_file, user_prompt]
 
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
@@ -196,29 +259,13 @@ class SquashAgent:
             raise ValueError("Nie udało się pobrać żadnych klatek z pliku wideo.")
 
         # Dodanie instrukcji do zapytania
-        prompt_text = "Oto klatki z nagrania wideo w odstępie 1 sekundy. Przeanalizuj grę pod kątem pracy nóg, kontroli kortu oraz zamachu i zwróć ustrukturyzowany JSON."
-        
-        lang_names = {"pl": "polskim", "en": "angielskim"}
-        mapped_lang = lang_names.get(lang, "polskim")
-        prompt_text += f"\n\nOdpowiedź wygeneruj w języku {mapped_lang}."
-        if players_config:
-            try:
-                conf = json.loads(players_config)
-                pa = conf.get("playerA", {})
-                pb = conf.get("playerB", {})
-                prompt_text += f"\n\nRozpoznani gracze na korcie:\n- Gracz A: {pa.get('name')} ({pa.get('gender')}, ubiór: {pa.get('look')})\n- Gracz B: {pb.get('name')} ({pb.get('gender')}, ubiór: {pb.get('look')})\nZwracaj się do graczy WYŁĄCZNIE używając ich imienia (np. '{pa.get('name')}, zrób...'). W formacie JSON przypisz imię do zmiennej target_player."
-            except json.JSONDecodeError:
-                pass
-
-        if previous_tips:
-            prompt_text += "\n\nOstatnio zwróciłeś już te uwagi (NIE POWTARZAJ ICH, skup się na innych błędach):\n"
-            for tip in previous_tips:
-                prompt_text += f"- {tip}\n"
-        contents.append(prompt_text)
+        base_prompt = "These are frames extracted from a squash match video at 1-second intervals. Analyze the players' footwork, court positioning, racket technique, and shot selection, then provide structured coaching feedback as JSON."
+        user_prompt = self._build_user_prompt(base_prompt, previous_tips, players_config, lang)
+        contents.append(user_prompt)
 
         # Konfiguracja API
         config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=self.system_prompt,
             response_mime_type="application/json",
             response_schema=CoachTip,
             temperature=0.2,

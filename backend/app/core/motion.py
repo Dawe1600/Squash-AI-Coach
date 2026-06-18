@@ -1,6 +1,6 @@
 import os
 import time
-from typing import List, Optional
+from typing import Optional
 
 class MotionDetector:
     def __init__(
