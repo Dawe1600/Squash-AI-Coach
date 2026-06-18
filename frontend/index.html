@@ -31,6 +31,10 @@
                 <h1>Squash <span class="accent-text">AI Coach</span></h1>
             </div>
             <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <select id="language-select" class="btn-select" style="padding: 0.4rem 0.5rem; font-weight: 600;">
+                    <option value="pl">PL</option>
+                    <option value="en">EN</option>
+                </select>
                 <div id="connection-status" class="status-badge disconnected">
                     <span class="status-dot"></span>
                     <span class="status-text">Rozłączony</span>
@@ -69,7 +73,7 @@
                 <div class="video-container">
                     <video id="video-preview" autoplay playsinline muted></video>
                     <div id="recording-indicator" class="recording-badge hidden">
-                        <span class="record-dot"></span> NAGRYWANIE
+                        <span class="record-dot"></span> <span id="recording-text">NAGRYWANIE</span>
                     </div>
                 </div>
                 <div class="action-buttons">
