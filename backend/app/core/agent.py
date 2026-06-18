@@ -53,7 +53,7 @@ class SquashAgent:
         # Jeśli api_key jest None, pobierze automatycznie z GEMINI_API_KEY.
         self.client = genai.Client(api_key=api_key)
 
-    async def analyze_video(self, video_path: str, previous_tips: List[str] = None, players_config: str = None) -> CoachTip:
+    async def analyze_video(self, video_path: str, previous_tips: List[str] = None, players_config: str = None, lang: str = "pl") -> CoachTip:
         """
         Główna metoda do analizy wideo. Przechodzi po liście modeli z failover queue.
         Dla każdego modelu próbuje najpierw przesłać wideo natywnie, a w razie błędu 
@@ -66,7 +66,7 @@ class SquashAgent:
             
             # Próba 1: Natywne wideo przez Files API
             try:
-                result = await self._analyze_native_video(video_path, model_name, previous_tips, players_config)
+                result = await self._analyze_native_video(video_path, model_name, previous_tips, players_config, lang)
                 print(f"[Agent] Sukces! Użyto modelu: {model_name}")
                 return result
             except Exception as e:
@@ -74,7 +74,7 @@ class SquashAgent:
                 
             # Próba 2: Fallback na klatki wideo (ekstracja obrazów)
             try:
-                result = await self._analyze_frame_by_frame(video_path, model_name, previous_tips, players_config)
+                result = await self._analyze_frame_by_frame(video_path, model_name, previous_tips, players_config, lang)
                 print(f"[Agent] Sukces (klatki)! Użyto modelu: {model_name}")
                 return result
             except Exception as e:
@@ -83,7 +83,7 @@ class SquashAgent:
 
         raise RuntimeError(f"Wszystkie modele z kolejki failover zawiodły. Ostatni błąd: {last_error}")
 
-    async def _analyze_native_video(self, video_path: str, model_name: str, previous_tips: List[str] = None, players_config: str = None) -> CoachTip:
+    async def _analyze_native_video(self, video_path: str, model_name: str, previous_tips: List[str] = None, players_config: str = None, lang: str = "pl") -> CoachTip:
         """
         Natywna wysyłka wideo do API przy użyciu client.files.upload.
         """
@@ -108,6 +108,10 @@ class SquashAgent:
                 temperature=0.2,
             )
             prompt_contents = [uploaded_file, "Przeanalizuj to wideo z meczu squasha i zwróć podsumowanie oraz oceny graczy."]
+            
+            lang_names = {"pl": "polskim", "en": "angielskim"}
+            mapped_lang = lang_names.get(lang, "polskim")
+            prompt_contents.append(f"\n\nOdpowiedź wygeneruj w języku {mapped_lang}.")
             if players_config:
                 try:
                     conf = json.loads(players_config)
@@ -146,7 +150,7 @@ class SquashAgent:
                 pass
             raise e
 
-    async def _analyze_frame_by_frame(self, video_path: str, model_name: str, previous_tips: List[str] = None, players_config: str = None) -> CoachTip:
+    async def _analyze_frame_by_frame(self, video_path: str, model_name: str, previous_tips: List[str] = None, players_config: str = None, lang: str = "pl") -> CoachTip:
         """
         Fallback: Wyciąga klatki z wideo w odstępach co 1 sekundę i przesyła je jako listę obrazów JPEG w zapytaniu multimodalnym.
         """
@@ -193,6 +197,10 @@ class SquashAgent:
 
         # Dodanie instrukcji do zapytania
         prompt_text = "Oto klatki z nagrania wideo w odstępie 1 sekundy. Przeanalizuj grę pod kątem pracy nóg, kontroli kortu oraz zamachu i zwróć ustrukturyzowany JSON."
+        
+        lang_names = {"pl": "polskim", "en": "angielskim"}
+        mapped_lang = lang_names.get(lang, "polskim")
+        prompt_text += f"\n\nOdpowiedź wygeneruj w języku {mapped_lang}."
         if players_config:
             try:
                 conf = json.loads(players_config)

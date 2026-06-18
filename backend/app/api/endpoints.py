@@ -18,10 +18,11 @@ class SessionManager:
         self.is_analyzing: Dict[str, bool] = {}
         self.session_history: Dict[str, list] = {}
         self.players_configs: Dict[str, str] = {}
+        self.languages: Dict[str, str] = {}
         self.agent = SquashAgent()
         self.tts = TTSService()
 
-    async def connect(self, session_id: str, websocket: WebSocket, players_config: str = None):
+    async def connect(self, session_id: str, websocket: WebSocket, players_config: str = None, lang: str = "pl"):
         await websocket.accept()
         self.active_websockets[session_id] = websocket
         # Unikalny katalog roboczy dla bufora tej sesji
@@ -32,7 +33,8 @@ class SessionManager:
         if players_config:
             self.players_configs[session_id] = players_config
             print(f"[SessionManager] Skonfigurowano graczy dla sesji {session_id}: {players_config}")
-        print(f"[SessionManager] Połączono nową sesję: {session_id}")
+        self.languages[session_id] = lang
+        print(f"[SessionManager] Połączono nową sesję: {session_id} w języku {lang}")
 
     def disconnect(self, session_id: str):
         if session_id in self.active_websockets:
@@ -52,6 +54,8 @@ class SessionManager:
             del self.session_history[session_id]
         if session_id in self.players_configs:
             del self.players_configs[session_id]
+        if session_id in self.languages:
+            del self.languages[session_id]
         print(f"[SessionManager] Rozłączono sesję: {session_id}")
 
     async def send_json(self, session_id: str, data: dict):
@@ -85,8 +89,9 @@ async def process_analysis_background(session_id: str, video_path: str):
         # Pobranie historii uwag i konfiguracji graczy
         previous_tips = manager.session_history.get(session_id, [])
         players_config = manager.players_configs.get(session_id)
+        lang = manager.languages.get(session_id, "pl")
         # 2. Analiza AI (Gemini/Gemma z failover)
-        analysis_result = await manager.agent.analyze_video(video_path, previous_tips=previous_tips, players_config=players_config)
+        analysis_result = await manager.agent.analyze_video(video_path, previous_tips=previous_tips, players_config=players_config, lang=lang)
         
         # 3. Sprawdzamy, czy AI ma uwagę do powiedzenia
         if not analysis_result.has_tip or not analysis_result.tip_text:
@@ -110,9 +115,9 @@ async def process_analysis_background(session_id: str, video_path: str):
         # 5. Konwersja na mowę
         await manager.send_json(session_id, {
             "type": "status",
-            "message": "Trener zwraca uwagę głosowo..."
+            "message": "Trener zwraca uwagę głosowo..." if lang == "pl" else "Coach is giving voice feedback..."
         })
-        mp3_bytes = await asyncio.to_thread(manager.tts.generate_speech, tts_text)
+        mp3_bytes = await asyncio.to_thread(manager.tts.generate_speech, tts_text, lang=lang)
         
         # 6. Wysłanie dźwięku przez WebSocket
         if mp3_bytes:
@@ -140,8 +145,8 @@ async def process_analysis_background(session_id: str, video_path: str):
                 pass
 
 @router.websocket("/ws/session")
-async def websocket_endpoint(websocket: WebSocket, session_id: str = Query(...), players_config: str = Query(None)):
-    await manager.connect(session_id, websocket, players_config)
+async def websocket_endpoint(websocket: WebSocket, session_id: str = Query(...), players_config: str = Query(None), lang: str = Query("pl")):
+    await manager.connect(session_id, websocket, players_config, lang)
     try:
         while True:
             # Utrzymujemy połączenie i odbieramy ewentualne polecenia ping/control od klienta
