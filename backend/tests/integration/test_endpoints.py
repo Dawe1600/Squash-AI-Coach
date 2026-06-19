@@ -43,3 +43,56 @@ def test_websocket_connection():
     # After context exit, the websocket should disconnect
     from app.api.endpoints import manager
     assert "ws_test" not in manager.active_websockets
+
+@pytest.mark.asyncio
+async def test_process_analysis_background(mocker):
+    from app.api.endpoints import process_analysis_background, manager
+    from app.core.schemas import CoachTip
+
+    session_id = "test_session_bg"
+    # Setup manager for this session
+    manager.active_websockets[session_id] = mocker.AsyncMock()
+    manager.players_configs[session_id] = None
+    manager.languages[session_id] = "pl"
+    manager.is_analyzing[session_id] = True
+    manager.analysis_counters[session_id] = 24
+    manager.session_history[session_id] = [
+        ("Old Tip", 2),
+        ("Recent Tip", 10)
+    ]
+    
+    # Mock agent.analyze_video
+    mock_analyze = mocker.patch.object(
+        manager.agent, 
+        "analyze_video", 
+        return_value=CoachTip(
+            has_tip=True,
+            tip_text="New Tip",
+            tip_category="footwork",
+            target_player="Jan",
+            severity_level="minor",
+            drill_suggestion="Do something"
+        )
+    )
+    
+    # Mock tts.generate_speech and os.path.exists
+    mocker.patch.object(manager.tts, "generate_speech", return_value=b"fake tts audio")
+    mocker.patch("os.path.exists", return_value=False)
+    
+    # Call process_analysis_background
+    await process_analysis_background(session_id, "fake_video_path.mp4")
+    
+    # Verify counter incremented to 25
+    assert manager.analysis_counters[session_id] == 25
+    
+    # Verify analyze_video was called with only "Recent Tip" as previous_tips (since 25 - 2 = 23 >= 20; 25 - 10 = 15 < 20)
+    mock_analyze.assert_called_once_with(
+        "fake_video_path.mp4",
+        previous_tips=["Recent Tip"],
+        players_config=None,
+        lang="pl"
+    )
+    
+    # Verify session_history was updated with "New Tip" and counter 25
+    assert ("New Tip", 25) in manager.session_history[session_id]
+

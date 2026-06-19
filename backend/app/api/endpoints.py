@@ -19,6 +19,7 @@ class SessionManager:
         self.session_history: Dict[str, list] = {}
         self.players_configs: Dict[str, str] = {}
         self.languages: Dict[str, str] = {}
+        self.analysis_counters: Dict[str, int] = {}
         self.agent = SquashAgent()
         self.tts = TTSService()
 
@@ -30,6 +31,7 @@ class SessionManager:
         self.motion_detectors[session_id] = MotionDetector(buffer_dir=buffer_dir)
         self.is_analyzing[session_id] = False
         self.session_history[session_id] = []
+        self.analysis_counters[session_id] = 0
         if players_config:
             self.players_configs[session_id] = players_config
             print(f"[SessionManager] Skonfigurowano graczy dla sesji {session_id}: {players_config}")
@@ -56,6 +58,8 @@ class SessionManager:
             del self.players_configs[session_id]
         if session_id in self.languages:
             del self.languages[session_id]
+        if session_id in self.analysis_counters:
+            del self.analysis_counters[session_id]
         print(f"[SessionManager] Rozłączono sesję: {session_id}")
 
     async def send_json(self, session_id: str, data: dict):
@@ -86,22 +90,29 @@ async def process_analysis_background(session_id: str, video_path: str):
     Dzięki temu HTTP POST zwraca status natychmiast, nie blokując wątku.
     """
     try:
+        # Zwiększamy licznik analiz dla danej sesji
+        manager.analysis_counters[session_id] = manager.analysis_counters.get(session_id, 0) + 1
+        current_counter = manager.analysis_counters[session_id]
+
         # Pobranie historii uwag i konfiguracji graczy
-        previous_tips = manager.session_history.get(session_id, [])
+        raw_history = manager.session_history.get(session_id, [])
+        # Filtrujemy historię: przekazujemy do AI tylko te uwagi, od których zgłoszenia minęło mniej niż 20 analiz
+        recent_tips = [tip_text for tip_text, counter in raw_history if current_counter - counter < 20]
+
         players_config = manager.players_configs.get(session_id)
         lang = manager.languages.get(session_id, "pl")
         # 2. Analiza AI (Gemini/Gemma z failover)
-        analysis_result = await manager.agent.analyze_video(video_path, previous_tips=previous_tips, players_config=players_config, lang=lang)
+        analysis_result = await manager.agent.analyze_video(video_path, previous_tips=recent_tips, players_config=players_config, lang=lang)
         
         # 3. Sprawdzamy, czy AI ma uwagę do powiedzenia
         if not analysis_result.has_tip or not analysis_result.tip_text:
             print(f"[endpoints] Brak rażących błędów. Ignoruję to okienko.")
             return
 
-        # Aktualizacja historii (ostatnie 3 uwagi)
-        history = manager.session_history.get(session_id, [])
-        history.append(analysis_result.tip_text)
-        manager.session_history[session_id] = history[-3:]
+        # Aktualizacja historii
+        raw_history.append((analysis_result.tip_text, current_counter))
+        # Ograniczamy historię do ostatnich 50 wpisów, aby zapobiec nieograniczonemu wzrostowi pamięci
+        manager.session_history[session_id] = raw_history[-50:]
 
         # Informujemy klienta (UI), że jest uwaga i generujemy TTS
         await manager.send_json(session_id, {
